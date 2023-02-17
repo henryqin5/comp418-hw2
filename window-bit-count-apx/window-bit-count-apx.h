@@ -32,6 +32,11 @@ typedef struct GroupNode {
     struct GroupNode *prev; // pointer to previous group
 } GroupNode;
 
+void insertBucket(StateApx* self);
+void evictAny(StateApx* self);
+uint32_t getCount(StateApx* self);
+void merge(StateApx* self, int ts, GroupNode *group);
+
 // k = 1/eps
 // if eps = 0.01 (relative error 1%) then k = 100
 // if eps = 0.001 (relative error 0.1%) the k = 1000
@@ -44,6 +49,8 @@ uint64_t wnd_bit_count_apx_new(StateApx* self, uint32_t wnd_size, uint32_t k) {
     self->k = k;
 
     // point head and tail to each other
+    self->head = &((GroupNode) {0, NULL, 0, 0, 0, NULL, NULL});
+    self->tail = &((GroupNode) {0, NULL, 0, 0, 0, NULL, NULL});
     self->head->next = self->tail;
     self->head->prev = NULL;
     self->tail->prev = self->head;
@@ -74,7 +81,7 @@ uint32_t wnd_bit_count_apx_next(StateApx* self, bool item) {
 
     // do nothing if our bit is a 0
     if (!item) {
-        return;
+        return getCount(self);
     }
 
     // add our new bit if its a 1
@@ -84,9 +91,7 @@ uint32_t wnd_bit_count_apx_next(StateApx* self, bool item) {
     // merge(self);
     
     // get the current count
-    getCount(self);
-    
-    return 0;
+    return getCount(self);
 }
 
 void insertBucket(StateApx* self) {
@@ -94,7 +99,8 @@ void insertBucket(StateApx* self) {
     if (self->head->next == self->tail || (*(self->head->next)).bucket_size != 1) {
         struct GroupNode *newNode = (GroupNode*) malloc(sizeof(GroupNode));
         newNode->bucket_size = 1;
-        newNode->buckets = new int[self->k + 1];
+        int A[self->k + 1];
+        newNode->buckets = &A[0];
         newNode->buckets[0] = self->now; // insert timestamp into buckets array
         newNode->bucket_insert = 1; // insert index is now 1
         newNode->bucket_evict = 0;
@@ -113,7 +119,7 @@ void insertBucket(StateApx* self) {
         } else { // if not, just insert the bucket
             struct GroupNode *group1 = self->head->next;
             group1->buckets[group1->bucket_insert] = self->now;
-            group1->bucket_insert = (group1->bucket_insert + 1) % (k + 1);
+            group1->bucket_insert = (group1->bucket_insert + 1) % (self->k + 1);
             group1->num_buckets += 1;
         }
     }
@@ -137,7 +143,7 @@ void evictAny(StateApx* self) {
             struct GroupNode* last_prev = last.prev;
             last_prev->next = last_next;
             last_next->prev = last_prev;
-            free(&last);
+            free(self->tail->prev);
         }
     }
 }
@@ -154,8 +160,10 @@ uint32_t getCount(StateApx* self) {
  *  GroupNode *group - pointer to the previous existing group
 */
 void merge(StateApx* self, int ts, GroupNode *group) {
-    // check if group->next exists and is the correct bucket size
+    // check if group->next exists and is the correct bucket size, if not then create new group
+    // if (group) {
 
+    // }
     // before inserting, check if need to merge
         // if so, then remove oldest two buckets (collect newer ts)
     // insert ts into current group

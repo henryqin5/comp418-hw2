@@ -20,7 +20,8 @@ uint64_t wnd_bit_count_new(State* self, uint32_t wnd_size) {
     self->index_oldest = 0;
     uint64_t memory = ((uint64_t) wnd_size) * sizeof(bool);
     self->wnd_buffer = (bool*) malloc(memory);
-    for (uint32_t i=0; i<wnd_size; i++) {
+    uint32_t i;
+    for (i=0; i<wnd_size; i++) {
         self->wnd_buffer[i] = false;
     }
     self->count = 0;

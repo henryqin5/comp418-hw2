@@ -19,14 +19,16 @@ int main() {
     uint32_t last_output = 0;
     uint32_t last_output_apx = 0;
 
-    for (uint32_t wnd_sz=1; wnd_sz<=W; wnd_sz++) {
+    uint32_t wnd_sz;
+    for (wnd_sz=1; wnd_sz<=W; wnd_sz++) {
         wnd_bit_count_new(&state, W);
         wnd_bit_count_print(&state);
 
         wnd_bit_count_apx_new(&state_apx, W, K);
         wnd_bit_count_apx_print(&state_apx);
 
-        for (uint32_t i=1; i<=N; i++) {
+        uint32_t i;
+        for (i=1; i<=N; i++) {
             bool item = true; //i % 2;
             last_output = wnd_bit_count_next(&state, item);
             last_output_apx = wnd_bit_count_apx_next(&state_apx, item);
