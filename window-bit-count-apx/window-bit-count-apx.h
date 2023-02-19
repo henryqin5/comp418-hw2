@@ -51,10 +51,10 @@ uint64_t wnd_bit_count_apx_new(StateApx* self, uint32_t wnd_size, uint32_t k) {
     // point head and tail to each other
     self->head = &((GroupNode) {0, NULL, 0, 0, 0, NULL, NULL});
     self->tail = &((GroupNode) {0, NULL, 0, 0, 0, NULL, NULL});
+    fprintf(stdout, "Head stats: num buckets is %d and group num is %d\n", self->head->num_buckets, self->head->bucket_size);
+    fprintf(stdout, "Tail stats: num buckets is %d and group num is %d\n", self->tail->num_buckets, self->tail->bucket_size);
     self->head->next = self->tail;
-    self->head->prev = NULL;
     self->tail->prev = self->head;
-    self->tail->next = NULL;
     
     // initiate logical timer
     self->now = 0;
@@ -69,28 +69,48 @@ void wnd_bit_count_apx_destruct(StateApx* self) {
 }
 
 void wnd_bit_count_apx_print(StateApx* self) {
+    printf("APX_PRINT: Printing\n");
     // This is useful for debugging.
+    struct GroupNode* cur = self->head->next;
+    fprintf(stdout, "Head stats: num buckets is %d and group num is %d\n", self->head->num_buckets, self->head->bucket_size);
+    fprintf(stdout, "Tail stats: num buckets is %d and group num is %d\n", self->tail->num_buckets, self->tail->bucket_size);
+
+    while (cur != NULL && cur != self->tail) {
+        printf("APX_PRINT: Group number: %d\n", cur->bucket_size);
+        printf("APX_PRINT: Number of Buckets: %d\n", cur->num_buckets);
+        if (cur->next == NULL) {
+            return;
+        }
+        cur = cur->next;
+        printf("APX_PRINT: Done with one iteration\n");
+    }
+    printf("APX_PRINT: Done Printing\n");
 }
 
 uint32_t wnd_bit_count_apx_next(StateApx* self, bool item) {
     // increment logical clock
+    printf("**** APX: increment clock *****\n");
     self->now++;
 
     // check if any buckets fall outside of window
+    printf("**** APX: call evict *****\n");
     evictAny(self);
 
     // do nothing if our bit is a 0
     if (!item) {
+        printf("**** APX: 0 input, called getCount *****\n");
         return getCount(self);
     }
 
     // add our new bit if its a 1
+    printf("**** APX: call insertBucket *****\n");
     insertBucket(self);
 
     // cascading merge to preserve invariant
     // merge(self);
     
     // get the current count
+    printf("**** APX: returning, called getCount *****\n");
     return getCount(self);
 }
 
@@ -175,8 +195,10 @@ uint32_t getCount(StateApx* self) {
  *  int size - the size of the current group (used to check if prev->next is correct)
 */
 void merge(StateApx* self, int ts, GroupNode *prev, int size) {
+    printf("**** APX: call merge, ts: %d, size: %d *****\n", ts, size);
     // The next bucket is valid
-    if (prev->next != NULL && prev->next->bucket_size == size) {
+    if (prev->next != self->tail && prev->next->bucket_size == size) {
+        printf("**** APX: next bucket valid *****\n");
         // check if next bucket needs to merge
         if (prev->next->num_buckets >= self->k + 1) {
             // if so then remove the oldest two buckets, update fields, and call merge
@@ -193,6 +215,7 @@ void merge(StateApx* self, int ts, GroupNode *prev, int size) {
         }
 
     } else { // next bucket invalid, need to create new bucket
+        printf("**** APX: next bucket invalid *****\n");
         struct GroupNode *newNode = (GroupNode*) malloc(sizeof(GroupNode));
         newNode->bucket_size = 0;
         int A[self->k + 1];
@@ -207,12 +230,19 @@ void merge(StateApx* self, int ts, GroupNode *prev, int size) {
         prev->next = newNode;
         newNode->next->prev = newNode;
 
+        fprintf(stderr, "MERGE: New group number: %d\n", newNode->bucket_size);
+        fprintf(stderr, "MERGE: New Number of Buckets: %d\n", newNode->num_buckets);
+        // debug: checking LL
+        wnd_bit_count_apx_print(self);
+
         // prev->next is now newNode
     }
     // finally insert ts into group
+    printf("**** APX: insert for merge *****\n");
     prev->next->buckets[prev->next->bucket_insert] = ts;
     prev->next->bucket_insert = (prev->next->bucket_insert + 1) % (self->k + 1);
     prev->next->num_buckets++;
+    printf("**** APX: merge done, returning *****\n");
 }
 
 

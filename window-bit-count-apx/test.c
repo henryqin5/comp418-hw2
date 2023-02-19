@@ -21,18 +21,28 @@ int main() {
 
     uint32_t wnd_sz;
     for (wnd_sz=1; wnd_sz<=W; wnd_sz++) {
+        printf("**** TEST: call wind bit count new *****\n");
         wnd_bit_count_new(&state, W);
         wnd_bit_count_print(&state);
 
+        printf("**** TEST: call wind bit count apx new *****\n");
         wnd_bit_count_apx_new(&state_apx, W, K);
         wnd_bit_count_apx_print(&state_apx);
 
         uint32_t i;
+        printf("**** TEST: entering for loop *****\n");
         for (i=1; i<=N; i++) {
+
             bool item = true; //i % 2;
+            printf("**** TEST: call wind bit count next *****\n");
+
             last_output = wnd_bit_count_next(&state, item);
-            last_output_apx = wnd_bit_count_apx_next(&state_apx, item);
+
+            printf("**** TEST: call wind bit count apx next *****\n");
             //wnd_bit_count_apx_print(&state_apx);
+            last_output_apx = wnd_bit_count_apx_next(&state_apx, item);
+            printf("**** TEST: after call wind bit count apx next *****\n");
+            wnd_bit_count_apx_print(&state_apx);
 
             //printf("last output (precise) = %u\n", last_output);
             //printf("last output (approximate) = %u\n", last_output_apx);
