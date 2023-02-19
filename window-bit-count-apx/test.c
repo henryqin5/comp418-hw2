@@ -5,7 +5,7 @@
 #include "window-bit-count-apx.h"
 #include "../window-bit-count/window-bit-count.h"
 
-#define W 200 // window size
+#define W 20 // window size
 #define N 1000 // stream length
 #define K 100 // relative error = 1 / K
 
@@ -34,14 +34,14 @@ int main() {
         for (i=1; i<=N; i++) {
 
             bool item = true; //i % 2;
-            printf("**** TEST: call wind bit count next *****\n");
+            // printf("**** TEST: call wind bit count next *****\n");
 
             last_output = wnd_bit_count_next(&state, item);
 
-            printf("**** TEST: call wind bit count apx next *****\n");
+            // printf("**** TEST: call wind bit count apx next *****\n");
             //wnd_bit_count_apx_print(&state_apx);
             last_output_apx = wnd_bit_count_apx_next(&state_apx, item);
-            printf("**** TEST: after call wind bit count apx next *****\n");
+            // printf("**** TEST: after call wind bit count apx next *****\n");
             wnd_bit_count_apx_print(&state_apx);
 
             //printf("last output (precise) = %u\n", last_output);
