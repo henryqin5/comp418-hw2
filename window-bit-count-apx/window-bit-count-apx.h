@@ -49,8 +49,20 @@ uint64_t wnd_bit_count_apx_new(StateApx* self, uint32_t wnd_size, uint32_t k) {
     self->k = k;
 
     // point head and tail to each other
-    self->head = &((GroupNode) {0, NULL, 0, 0, 0, NULL, NULL});
-    self->tail = &((GroupNode) {0, NULL, 0, 0, 0, NULL, NULL});
+    self->head = (GroupNode*) malloc(sizeof(GroupNode));
+    self->head->bucket_size = 0;
+    self->head->buckets = NULL;
+    self->head->bucket_insert = 0;
+    self->head->bucket_evict = 0;
+    self->head->num_buckets = 0;
+    self->head->prev = NULL;
+    self->tail = (GroupNode*) malloc(sizeof(GroupNode));
+    self->tail->bucket_size = 0;
+    self->tail->buckets = NULL;
+    self->tail->bucket_insert = 0;
+    self->tail->bucket_evict = 0;
+    self->tail->num_buckets = 0;
+    self->tail->next = NULL;
     fprintf(stdout, "Head stats: num buckets is %d and group num is %d\n", self->head->num_buckets, self->head->bucket_size);
     fprintf(stdout, "Tail stats: num buckets is %d and group num is %d\n", self->tail->num_buckets, self->tail->bucket_size);
     self->head->next = self->tail;
@@ -72,8 +84,8 @@ void wnd_bit_count_apx_print(StateApx* self) {
     printf("APX_PRINT: Printing\n");
     // This is useful for debugging.
     struct GroupNode* cur = self->head->next;
-    fprintf(stdout, "Head stats: num buckets is %d and group num is %d\n", self->head->num_buckets, self->head->bucket_size);
-    fprintf(stdout, "Tail stats: num buckets is %d and group num is %d\n", self->tail->num_buckets, self->tail->bucket_size);
+    fprintf(stdout, "Print Head stats: num buckets is %d and group num is %d\n", self->head->num_buckets, self->head->bucket_size);
+    fprintf(stdout, "Print Tail stats: num buckets is %d and group num is %d\n", self->tail->num_buckets, self->tail->bucket_size);
 
     while (cur != NULL && cur != self->tail) {
         printf("APX_PRINT: Group number: %d\n", cur->bucket_size);
