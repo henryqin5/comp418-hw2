@@ -35,7 +35,7 @@ typedef struct GroupNode {
 void insertBucket(StateApx* self);
 void evictAny(StateApx* self);
 uint32_t getCount(StateApx* self);
-void merge(StateApx* self, int ts, GroupNode *group);
+void merge(StateApx* self, int ts, GroupNode *prev, int size);
 
 // k = 1/eps
 // if eps = 0.01 (relative error 1%) then k = 100
@@ -95,34 +95,38 @@ uint32_t wnd_bit_count_apx_next(StateApx* self, bool item) {
 }
 
 void insertBucket(StateApx* self) {
-    // check if there is no 1-valued group
-    if (self->head->next == self->tail || (*(self->head->next)).bucket_size != 1) {
-        struct GroupNode *newNode = (GroupNode*) malloc(sizeof(GroupNode));
-        newNode->bucket_size = 1;
-        int A[self->k + 1];
-        newNode->buckets = &A[0];
-        newNode->buckets[0] = self->now; // insert timestamp into buckets array
-        newNode->bucket_insert = 1; // insert index is now 1
-        newNode->bucket_evict = 0;
-        newNode->num_buckets = 1; // starts at 1
+    // TODO: rewriting merge so that insertBucket can just call merge
+    // (treating the head as the previous group to group1)
+    merge(self, self->now, self->head, 1);
 
-        // insert newNode after head
-        newNode->next = self->head->next;
-        newNode->prev = self->head;
-        self->head->next->prev = newNode;
-        self->head->next = newNode;
-    } else { // the group of buckets size 1 already exists
-        // check if the group is full
-        if (self->head->next->num_buckets >= self->k + 1) {
-            // if the group would be full, call merge using new bucket on first group
-            merge(self, self->now, self->head->next);
-        } else { // if not, just insert the bucket
-            struct GroupNode *group1 = self->head->next;
-            group1->buckets[group1->bucket_insert] = self->now;
-            group1->bucket_insert = (group1->bucket_insert + 1) % (self->k + 1);
-            group1->num_buckets += 1;
-        }
-    }
+    // check if there is no 1-valued group
+    // if (self->head->next == self->tail || (*(self->head->next)).bucket_size != 1) {
+    //     struct GroupNode *newNode = (GroupNode*) malloc(sizeof(GroupNode));
+    //     newNode->bucket_size = 1;
+    //     int A[self->k + 1];
+    //     newNode->buckets = &A[0];
+    //     newNode->buckets[0] = self->now; // insert timestamp into buckets array
+    //     newNode->bucket_insert = 1; // insert index is now 1
+    //     newNode->bucket_evict = 0;
+    //     newNode->num_buckets = 1; // starts at 1
+
+    //     // insert newNode after head
+    //     newNode->next = self->head->next;
+    //     newNode->prev = self->head;
+    //     self->head->next->prev = newNode;
+    //     self->head->next = newNode;
+    // } else { // the group of buckets size 1 already exists
+    //     // check if the group is full
+    //     if (self->head->next->num_buckets >= self->k + 1) {
+    //         // if the group would be full, call merge using new bucket on first group
+    //         merge(self, self->now, self->head->next);
+    //     } else { // if not, just insert the bucket
+    //         struct GroupNode *group1 = self->head->next;
+    //         group1->buckets[group1->bucket_insert] = self->now;
+    //         group1->bucket_insert = (group1->bucket_insert + 1) % (self->k + 1);
+    //         group1->num_buckets += 1;
+    //     }
+    // }
 }
 
 void evictAny(StateApx* self) {
@@ -151,24 +155,64 @@ void evictAny(StateApx* self) {
 
 
 uint32_t getCount(StateApx* self) {
-
+    // traverse the linked list backwards and count each group as if they were full, then subtract at the end
+    struct GroupNode* cur = self->head->next;
+    uint32_t count = 0;
+    while (cur != self->tail) {
+        count += cur->bucket_size * cur->num_buckets;
+        cur = cur->next;
+    }
+    if (cur->prev != self->head) {
+        count -= cur->prev->bucket_size - 1;
+    }
+    return count;
 }
 
 /**
  * Inputs:
  *  int ts - the timestamp of the bucket received from the previous merge call
- *  GroupNode *group - pointer to the previous existing group
+ *  GroupNode *prev - pointer to the previous existing group (head if inserting into group 1)
+ *  int size - the size of the current group (used to check if prev->next is correct)
 */
-void merge(StateApx* self, int ts, GroupNode *group) {
-    // check if group->next exists and is the correct bucket size, if not then create new group
-    // if (group) {
+void merge(StateApx* self, int ts, GroupNode *prev, int size) {
+    // The next bucket is valid
+    if (prev->next != NULL && prev->next->bucket_size == size) {
+        // check if next bucket needs to merge
+        if (prev->next->num_buckets >= self->k + 1) {
+            // if so then remove the oldest two buckets, update fields, and call merge
+            // removes oldest bucket
+            prev->next->bucket_evict = (prev->next->bucket_evict + 1) % (self->k + 1);
+            // collect newer ts of second oldest bucket
+            int timestamp = prev->next->buckets[prev->next->bucket_evict];
+            // removes second oldest bucket
+            prev->next->bucket_evict = (prev->next->bucket_evict + 1) % (self->k + 1);
+            // updates bucket count
+            prev->next->num_buckets -= 2;
+            // call merge
+            merge(self, timestamp, prev->next, size * 2);
+        }
 
-    // }
-    // before inserting, check if need to merge
-        // if so, then remove oldest two buckets (collect newer ts)
-    // insert ts into current group
+    } else { // next bucket invalid, need to create new bucket
+        struct GroupNode *newNode = (GroupNode*) malloc(sizeof(GroupNode));
+        newNode->bucket_size = 0;
+        int A[self->k + 1];
+        newNode->buckets = &A[0];
+        newNode->bucket_insert = 0;
+        newNode->bucket_evict = 0;
+        newNode->num_buckets = 0;
 
-    // call merge using newer ts and group->next
+        // insert newNode into linked list
+        newNode->next = prev->next;
+        newNode->prev = prev;
+        prev->next = newNode;
+        newNode->next->prev = newNode;
+
+        // prev->next is now newNode
+    }
+    // finally insert ts into group
+    prev->next->buckets[prev->next->bucket_insert] = ts;
+    prev->next->bucket_insert = (prev->next->bucket_insert + 1) % (self->k + 1);
+    prev->next->num_buckets++;
 }
 
 
