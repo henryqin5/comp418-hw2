@@ -44,9 +44,9 @@ int main() {
             // printf("**** TEST: after call wind bit count apx next *****\n");
             wnd_bit_count_apx_print(&state_apx);
 
-            //printf("last output (precise) = %u\n", last_output);
-            //printf("last output (approximate) = %u\n", last_output_apx);
-            //printf("\n");
+            // printf("last output (precise) = %u\n", last_output);
+            // printf("last output (approximate) = %u\n", last_output_apx);
+            // printf("\n");
 
             assert(last_output >= last_output_apx);
             uint32_t error_abs = last_output - last_output_apx;

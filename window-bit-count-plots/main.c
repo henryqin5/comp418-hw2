@@ -48,9 +48,9 @@ void execute(uint32_t wnd_sz) {
 
     struct timespec tick, tock;
 	clock_gettime(CLOCK_MONOTONIC, &tick);
-
+    uint32_t i;
     uint32_t last_output = 0;
-    for (uint32_t i=1; i<=N; i++) {
+    for (i=1; i<=N; i++) {
         bool item = true; //i % 2;
         last_output = wnd_bit_count_next(&state, item);
     }
@@ -104,9 +104,9 @@ void execute_apx(uint32_t wnd_sz, uint32_t k_index) {
 
     struct timespec tick, tock;
 	clock_gettime(CLOCK_MONOTONIC, &tick);
-
+    uint32_t i;
     uint32_t last_output = 0;
-    for (uint32_t i=1; i<=N; i++) {
+    for (i=1; i<=N; i++) {
         bool item = true; //i % 2;
         last_output = wnd_bit_count_apx_next(&state, item);
     }
@@ -149,13 +149,15 @@ int main() {
 
     State state;
     StateApx state_apx;
-
-	for (uint32_t i=0; i<T; i++) {
-		for (uint32_t j=0; j<NUM_W; j++) {
+    uint32_t i;
+	for (i=0; i<T; i++) {
+        uint32_t j;
+		for (j=0; j<NUM_W; j++) {
 			uint32_t wnd_sz = W_OPTIONS[j];
             execute(wnd_sz);
             sleep(P);
-            for (uint32_t k=0; k<NUM_K; k++) {
+            uint32_t k;
+            for (k=0; k<NUM_K; k++) {
                 execute_apx(wnd_sz, k);
                 sleep(P);
             }
@@ -188,7 +190,7 @@ int main() {
 		exit(1);
 	}
 
-    for (uint32_t i=0; i<r_index; i++) {
+    for (i=0; i<r_index; i++) {
         Record r = results[i];
         if (r.algo == 0) {
             sprintf(scratch, "exact");
