@@ -31,7 +31,7 @@ typedef struct GroupNode {
     int bucket_evict; // index of next bucket to evict (oldest) if group is full
     int num_buckets; // number of buckets within this group
     struct GroupNode *next; // pointer to next group
-    struct GroupNode *prev; // pointer to previous group
+    // struct GroupNode *prev; // pointer to previous group
 } GroupNode;
 
 void insertBucket(StateApx* self);
@@ -51,28 +51,28 @@ uint64_t wnd_bit_count_apx_new(StateApx* self, int wnd_size, int k) {
     self->W = wnd_size;
     self->k = k;
 
-    // point head and tail to each other
+    // init head and tail
     self->head = (GroupNode*) malloc(sizeof(GroupNode));
     self->head->bucket_size = 0;
     self->head->buckets = NULL;
     self->head->bucket_insert = 0;
     self->head->bucket_evict = 0;
     self->head->num_buckets = 0;
-    self->head->prev = NULL;
     self->tail = (GroupNode*) malloc(sizeof(GroupNode));
     self->tail->bucket_size = 0;
     self->tail->buckets = NULL;
     self->tail->bucket_insert = 0;
     self->tail->bucket_evict = 0;
     self->tail->num_buckets = 0;
+
+    // point head to tail
+    self->head->next = self->tail;
     self->tail->next = NULL;
 
     // Initialize all the buckets we could ever dream of
     self->buckets = (int*) malloc(sizeof(int) * (k + 1) * ceil(log2(wnd_size/(k + 1) + 1)));
     // fprintf(stdout, "Head stats: num buckets is %d and group num is %d\n", self->head->num_buckets, self->head->bucket_size);
     // fprintf(stdout, "Tail stats: num buckets is %d and group num is %d\n", self->tail->num_buckets, self->tail->bucket_size);
-    self->head->next = self->tail;
-    self->tail->prev = self->head;
     
     // initiate logical timer
     self->now = 0;
@@ -181,10 +181,15 @@ void insertBucket(StateApx* self) {
 }
 
 void evictAny(StateApx* self) {
-    if (self->head->next == self->tail || self->tail->prev == self->head) {
+    if (self->head->next == self->tail) {
         return;
     }
-    struct GroupNode* last = self->tail->prev;
+    // struct GroupNode* last = self->tail->prev;
+    // looping through LL to get last
+    struct GroupNode* last = self->head;
+    while (last->next != self->tail) {
+        last = last->next;
+    }
     // printf("**** APX: call evict on group: %d\n", last->bucket_size);
     // printf("**** APX: last bucket_evict: %d\n", last->bucket_evict);
     // printf("**** APX: looking to evict ts: %d\n", last->buckets[last->bucket_evict]);
@@ -199,30 +204,33 @@ void evictAny(StateApx* self) {
 
 
         // check if group is empty, then remove group
-        if (last->num_buckets == 0) {
-            // if the evict index is equal to the insert index, we remove the group
-            struct GroupNode* last_next = last->next;
-            struct GroupNode* last_prev = last->prev;
-            last_prev->next = last_next;
-            last_next->prev = last_prev;
-            free(self->tail->prev);
-        }
+        // if (last->num_buckets == 0) {
+        //     // if the evict index is equal to the insert index, we remove the group
+        //     struct GroupNode* last_next = last->next;
+        //     struct GroupNode* last_prev = last->prev;
+        //     last_prev->next = last_next;
+        //     last_next->prev = last_prev;
+        //     free(self->tail->prev);
+        // }
     }
 }
 
 
 
 int getCount(StateApx* self) {
-    // traverse the linked list backwards and count each group as if they were full, then subtract at the end
+    // traverse the linked list and count each group as if they were full, except the last group
     struct GroupNode* cur = self->head->next;
+    if (cur == self->tail) { // list empty
+        return 0;
+    }
     int count = 0;
-    while (cur != self->tail) {
+    while (cur->next != self->tail) { // stops one before the last group
+        printf("groupnode #: %d\n", cur->bucket_size);
         count += cur->bucket_size * cur->num_buckets;
         cur = cur->next;
     }
-    if (cur->prev != self->head) {
-        count -= cur->prev->bucket_size - 1;
-    }
+    // now do the last group, except make one of the buckets = 1
+    count += cur->bucket_size * (cur->num_buckets - 1) + 1;
     // printf("count: %d\n", count);
     return count;
 }
@@ -266,10 +274,12 @@ void merge(StateApx* self, int ts, GroupNode *prev, int size) {
         newNode->num_buckets = 0;
 
         // insert newNode into linked list
+        // newNode->next = prev->next;
+        // newNode->prev = prev;
+        // prev->next = newNode;
+        // newNode->next->prev = newNode;
         newNode->next = prev->next;
-        newNode->prev = prev;
         prev->next = newNode;
-        newNode->next->prev = newNode;
 
         // printf("MERGE: New group number: %d\n", newNode->bucket_size);
         // printf("MERGE: New Number of Buckets: %d\n", newNode->num_buckets);
