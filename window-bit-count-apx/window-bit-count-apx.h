@@ -18,6 +18,7 @@ uint64_t N_MERGES = 0; // keep track of how many bucket merges occur
 typedef struct StateApx {
     struct GroupNode *head; 
     struct GroupNode *tail;
+    struct GroupNode *groups;
     int now;
     int W;
     int k;
@@ -71,9 +72,11 @@ uint64_t wnd_bit_count_apx_new(StateApx* self, int wnd_size, int k) {
     self->tail->next = NULL;
 
     // Initialize all the buckets we could ever dream of
-    printf(" ceil(log2(wnd_size/(k + 1) + 1)) %d\n", wnd_size/(k + 1) + 1);
+    // printf(" ceil(log2(wnd_size/(k + 1) + 1)) %d\n", wnd_size/(k + 1) + 1);
     self->buckets = (int*) malloc(sizeof(int) * (k + 1) * (ceil(log2(wnd_size/(k + 1) + 1)) + 1));
-    printf("SIZE OF BUCKETS MEMORY: %d\n", sizeof(int) * (k + 1) * (ceil(log2(wnd_size/(k + 1) + 1)) +1));
+    // Malloc group node times number of groups
+    self->groups = (GroupNode*) malloc(sizeof(GroupNode) * (ceil(log2(wnd_size/(k + 1) + 1)) + 1));
+    // printf("SIZE OF BUCKETS MEMORY: %d\n", sizeof(int) * (k + 1) * (ceil(log2(wnd_size/(k + 1) + 1)) +1));
 
     // fprintf(stdout, "Head stats: num buckets is %d and group num is %d\n", self->head->num_buckets, self->head->bucket_size);
     // fprintf(stdout, "Tail stats: num buckets is %d and group num is %d\n", self->tail->num_buckets, self->tail->bucket_size);
@@ -86,7 +89,7 @@ uint64_t wnd_bit_count_apx_new(StateApx* self, int wnd_size, int k) {
 
     // The function should return the total number of bytes allocated on the heap.
     // int mem = sizeof(int) * (k) * ceil(log2(wnd_size/(k))) + 2 * sizeof(struct GroupNode);
-    int mem = sizeof(int) * (k + 1) * (ceil(log2(wnd_size/(k + 1) + 1)) + 1);
+    int mem = sizeof(int) * (k + 1) * (ceil(log2(wnd_size/(k + 1) + 1)) + 1) + sizeof(GroupNode) * (ceil(log2(wnd_size/(k + 1) + 1)) + 1);
 
     printf("MEMO USAGE %d\n", mem);
     return mem;
@@ -95,14 +98,16 @@ uint64_t wnd_bit_count_apx_new(StateApx* self, int wnd_size, int k) {
 void wnd_bit_count_apx_destruct(StateApx* self) {
     // TODO: Fill me.
     // Make sure you free the memory allocated on the heap.
-    struct GroupNode *cur = self->head;
-    int count = 0;
-    while (cur != NULL) {
-        struct GroupNode *temp = cur->next;
-        free(cur->buckets);
-        free(cur);
-        cur = temp;
-    }
+    // struct GroupNode *cur = self->head;
+    // int count = 0;
+    free(self->buckets);
+    free(self->groups);
+    // while (cur != NULL) {
+    //     struct GroupNode *temp = cur->next;
+    //     free(cur->buckets);
+    //     free(cur);
+    //     cur = temp;
+    // }
 }
 
 void wnd_bit_count_apx_print(StateApx* self) {
@@ -278,25 +283,26 @@ void merge(StateApx* self, int ts, GroupNode *prev, int size) {
 
     } else { // next bucket invalid, need to create new bucket
         // printf("**** APX: next bucket invalid *****\n");
-        struct GroupNode *newNode = (GroupNode*) malloc(sizeof(GroupNode));
-        newNode->bucket_size = size;
+        struct GroupNode newNode = self->groups[(int) log2(size)];
+        // struct GroupNode *newNode = (GroupNode*) malloc(sizeof(GroupNode));
+        newNode.bucket_size = size;
         // printf("__________________________________________ %d\n", self->k+1);
         // int *A = (int*) malloc(sizeof(int) * (self->k + 1));
         // newNode->buckets = &A[0];
-        printf("***bucket idx: %d\n", (int) log2(newNode->bucket_size) * (self->k + 1));
-        newNode->buckets = &(self->buckets[(int) log2(newNode->bucket_size) * (self->k + 1)]); // use global idx (newNode->bucket_ize - 1) * k + 1
+        // printf("***bucket idx: %d\n", (int) log2(newNode->bucket_size) * (self->k + 1));
+        newNode.buckets = &(self->buckets[(int) log2(newNode.bucket_size) * (self->k + 1)]); // use global idx (newNode->bucket_ize - 1) * k + 1
         // self->cur_idx += self->k + 1; // increment global idx
-        newNode->bucket_insert = 0;
-        newNode->bucket_evict = 0;
-        newNode->num_buckets = 0;
+        newNode.bucket_insert = 0;
+        newNode.bucket_evict = 0;
+        newNode.num_buckets = 0;
 
         // insert newNode into linked list
         // newNode->next = prev->next;
         // newNode->prev = prev;
         // prev->next = newNode;
         // newNode->next->prev = newNode;
-        newNode->next = prev->next;
-        prev->next = newNode;
+        newNode.next = prev->next;
+        prev->next = &(newNode);
 
         // printf("MERGE: New group number: %d\n", newNode->bucket_size);
         // printf("MERGE: New Number of Buckets: %d\n", newNode->num_buckets);
