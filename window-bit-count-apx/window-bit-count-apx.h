@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <math.h>
+#include <inttypes.h>
 
 uint64_t N_MERGES = 0; // keep track of how many bucket merges occur
 
@@ -20,6 +21,7 @@ typedef struct StateApx {
     int now;
     int W;
     int k;
+    int *buckets;
 } StateApx;
 
 typedef struct GroupNode {
@@ -36,6 +38,7 @@ void insertBucket(StateApx* self);
 void evictAny(StateApx* self);
 int getCount(StateApx* self);
 void merge(StateApx* self, int ts, GroupNode *prev, int size);
+int count_buckets(StateApx* self);
 
 // k = 1/eps
 // if eps = 0.01 (relative error 1%) then k = 100
@@ -63,6 +66,9 @@ uint64_t wnd_bit_count_apx_new(StateApx* self, int wnd_size, int k) {
     self->tail->bucket_evict = 0;
     self->tail->num_buckets = 0;
     self->tail->next = NULL;
+
+    // Initialize all the buckets we could ever dream of
+    self->buckets = (int*) malloc(sizeof(int) * (k + 1) * ceil(log2(wnd_size/(k + 1) + 1)));
     // fprintf(stdout, "Head stats: num buckets is %d and group num is %d\n", self->head->num_buckets, self->head->bucket_size);
     // fprintf(stdout, "Tail stats: num buckets is %d and group num is %d\n", self->tail->num_buckets, self->tail->bucket_size);
     self->head->next = self->tail;
@@ -72,12 +78,24 @@ uint64_t wnd_bit_count_apx_new(StateApx* self, int wnd_size, int k) {
     self->now = 0;
 
     // The function should return the total number of bytes allocated on the heap.
-    return 0;
+    // int mem = sizeof(int) * (k) * ceil(log2(wnd_size/(k))) + 2 * sizeof(struct GroupNode);
+    int mem = sizeof(int) * (k + 1) * ceil(log2(wnd_size/(k + 1) + 1)) + 2 * sizeof(struct GroupNode);
+
+    printf("MEMO USAGE %d\n", mem);
+    return mem;
 }
 
 void wnd_bit_count_apx_destruct(StateApx* self) {
     // TODO: Fill me.
     // Make sure you free the memory allocated on the heap.
+    struct GroupNode *cur = self->head;
+    int count = 0;
+    while (cur != NULL) {
+        struct GroupNode *temp = cur->next;
+        free(cur->buckets);
+        free(cur);
+        cur = temp;
+    }
 }
 
 void wnd_bit_count_apx_print(StateApx* self) {
@@ -102,7 +120,7 @@ void wnd_bit_count_apx_print(StateApx* self) {
 int wnd_bit_count_apx_next(StateApx* self, bool item) {
     // increment logical clock
     self->now++;
-    printf("now: %d\n", self->now);
+    // printf("now: %d\n", self->now);
 
 
     // check if any buckets fall outside of window
@@ -110,7 +128,7 @@ int wnd_bit_count_apx_next(StateApx* self, bool item) {
 
     // do nothing if our bit is a 0
     if (!item) {
-        printf("item = 0\n");
+        // printf("item = 0\n");
         return getCount(self);
     }
 
@@ -123,6 +141,7 @@ int wnd_bit_count_apx_next(StateApx* self, bool item) {
     
     // get the current count
     // printf("**** APX: returning, called getCount *****\n");
+    // printf("****** COUNT OF BUCKETS %d\n", count_buckets(self));
     return getCount(self);
 }
 
@@ -167,15 +186,15 @@ void evictAny(StateApx* self) {
     }
     struct GroupNode* last = self->tail->prev;
     // printf("**** APX: call evict on group: %d\n", last->bucket_size);
-    printf("**** APX: last bucket_evict: %d\n", last->bucket_evict);
-    printf("**** APX: looking to evict ts: %d\n", last->buckets[last->bucket_evict]);
+    // printf("**** APX: last bucket_evict: %d\n", last->bucket_evict);
+    // printf("**** APX: looking to evict ts: %d\n", last->buckets[last->bucket_evict]);
     // printf("**** APX: Subtract: %d\n", self->now - self->W);
 
     if ((int) last->buckets[last->bucket_evict] <= (int) ((self->now) - (self->W))) {
-        printf("Evicting a bucket\n");
+        // printf("Evicting a bucket\n");
         // increment bucket evict by 1
         last->bucket_evict = (last->bucket_evict + 1) % (self->k + 1);
-        printf("**** APX: Printing bucket_evict %d\n", last->bucket_evict);
+        // printf("**** APX: Printing bucket_evict %d\n", last->bucket_evict);
         last->num_buckets = last->num_buckets - 1;
 
 
@@ -204,7 +223,7 @@ int getCount(StateApx* self) {
     if (cur->prev != self->head) {
         count -= cur->prev->bucket_size - 1;
     }
-    printf("count: %d\n", count);
+    // printf("count: %d\n", count);
     return count;
 }
 
@@ -215,7 +234,7 @@ int getCount(StateApx* self) {
  *  int size - the size of the current group (used to check if prev->next is correct)
 */
 void merge(StateApx* self, int ts, GroupNode *prev, int size) {
-    printf("inserting bucket timstamp: %d, size: %d\n", ts, size);
+    // printf("inserting bucket timstamp: %d, size: %d\n", ts, size);
     // The next bucket is valid
     // printf("**** APX: call merge, next bucket size is: %d, size: %d *****\n", prev->next->bucket_size, size);
     if (prev->next != self->tail && prev->next->bucket_size == size) {
@@ -236,10 +255,11 @@ void merge(StateApx* self, int ts, GroupNode *prev, int size) {
         }
 
     } else { // next bucket invalid, need to create new bucket
-        printf("**** APX: next bucket invalid *****\n");
+        // printf("**** APX: next bucket invalid *****\n");
         struct GroupNode *newNode = (GroupNode*) malloc(sizeof(GroupNode));
         newNode->bucket_size = size;
-        int A[self->k + 1];
+        // printf("__________________________________________ %d\n", self->k+1);
+        int *A = (int*) malloc(sizeof(int) * (self->k + 1));
         newNode->buckets = &A[0];
         newNode->bucket_insert = 0;
         newNode->bucket_evict = 0;
@@ -266,6 +286,17 @@ void merge(StateApx* self, int ts, GroupNode *prev, int size) {
     // printf("MERGE: inserted into group: %d\n", prev->next->bucket_size);
     // printf("MERGE: now has: %d buckets\n", prev->next->num_buckets);
     // printf("**** APX: merge done, returning *****\n");
+}
+
+int count_buckets(StateApx* self){
+    struct GroupNode* cur = self->head->next;
+    int count = 0;
+    while (cur != self->tail) {
+        count += cur->num_buckets;
+        cur = cur->next;
+    }
+
+    return count;
 }
 
 
