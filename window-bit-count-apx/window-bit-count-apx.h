@@ -28,7 +28,7 @@ typedef struct StateApx {
 } StateApx;
 
 typedef struct GroupNode {
-    int bucket_size; // size of buckets
+    // int bucket_size; // size of buckets
     int* buckets; // k+1 sized circular array of buckets
     int bucket_insert; // index where next bucket will be inserted
     int bucket_evict; // index of next bucket to evict (oldest) if group is full
@@ -79,16 +79,13 @@ uint64_t wnd_bit_count_apx_new(StateApx* self, int wnd_size, int k) {
     // printf("%d\n", (ceil(log2(wnd_size/(k + 1) + 1)) + 1));
     int mem1 = (k + 1) * (ceil(log2(wnd_size/(k + 1) + 1)) + 1);
     self->buckets = (int*) calloc(sizeof(int), mem1);
-    printf("buckets mem size: %d\n", mem1);
+    // printf("buckets mem size: %d\n", mem1);
     // Malloc group node times number of groups
     // printf("groups mem size: %d\n", sizeof(GroupNode) * (ceil(log2(wnd_size/(k + 1) + 1)) + 1));
     int mem2 = (ceil(log2(wnd_size/(k + 1) + 1)) + 1);
     self->groups = (GroupNode*) calloc(sizeof(GroupNode), mem2);
-    printf("groups mem size: %d\n", mem2);
+    // printf("groups mem size: %d\n", mem2);
     // printf("SIZE OF BUCKETS MEMORY: %d\n", sizeof(int) * (k + 1) * (ceil(log2(wnd_size/(k + 1) + 1)) +1));
-
-    // fprintf(stdout, "Head stats: num buckets is %d and group num is %d\n", self->head->num_buckets, self->head->bucket_size);
-    // fprintf(stdout, "Tail stats: num buckets is %d and group num is %d\n", self->tail->num_buckets, self->tail->bucket_size);
     
     // initialize logical timer
     self->now = 0;
@@ -98,14 +95,14 @@ uint64_t wnd_bit_count_apx_new(StateApx* self, int wnd_size, int k) {
 
     // The function should return the total number of bytes allocated on the heap.
     // int mem = sizeof(int) * (k) * ceil(log2(wnd_size/(k))) + 2 * sizeof(struct GroupNode);
-    int firstmem = (sizeof(int) * (k + 1) * (ceil(log2(wnd_size/(k + 1) + 1)) + 1));
+    // int firstmem = (sizeof(int) * (k + 1) * (ceil(log2(wnd_size/(k + 1) + 1)) + 1));
     // printf("first half of mem: %d\n", (sizeof(int) * (k + 1) * (ceil(log2(wnd_size/(k + 1) + 1)) + 1)));
     // printf("first half of mem: %d\n", firstmem);
     // printf("second half of mem: %d\n", (sizeof(GroupNode) * (ceil(log2(wnd_size/(k + 1) + 1)) + 1)));
     // printf("full mem: %d\n", sizeof(int) * (k + 1) * (ceil(log2(wnd_size/(k + 1) + 1)) + 1) + sizeof(GroupNode) * (ceil(log2(wnd_size/(k + 1) + 1)) + 1));
-    int mem = sizeof(int) * (k + 1) * (ceil(log2(wnd_size/(k + 1) + 1)) + 1) + sizeof(GroupNode) * (ceil(log2(wnd_size/(k + 1) + 1)) + 1);
+    // int mem = sizeof(int) * (k + 1) * (ceil(log2(wnd_size/(k + 1) + 1)) + 1) + sizeof(GroupNode) * (ceil(log2(wnd_size/(k + 1) + 1)) + 1);
 
-    printf("MEMO USAGE %d\n", mem1 + mem2);
+    // printf("MEMO USAGE %d\n", mem1 + mem2);
     return mem1 + mem2;
 }
 
@@ -146,7 +143,7 @@ void wnd_bit_count_apx_print(StateApx* self) {
 int wnd_bit_count_apx_next(StateApx* self, bool item) {
     // increment logical clock
     self->now++;
-    printf("NOW: %d\n", self->now);
+    // printf("NOW: %d\n", self->now);
     // printf("now: %d\n", self->now);
 
 
@@ -221,10 +218,10 @@ int getCount(StateApx* self) {
     int i;
     int count = 0;
     for (i = 0; i <= self->last_group_idx; i++) {
-        count += self->groups[i].bucket_size * self->groups[i].num_buckets;
+        count += (int)(pow(2, i) + 1e-9) * self->groups[i].num_buckets;
     }
     // subtract one bucket from the last group and add 1
-    count -= self->groups[self->last_group_idx].bucket_size - 1;
+    count -= (int)(pow(2, self->last_group_idx) + 1e-9) - 1;
     
     return count;
 
@@ -254,8 +251,9 @@ int getCount(StateApx* self) {
  *  int group_idx - the index of the current group
 */
 void merge(StateApx* self, int ts, int group_idx) {
-    int size = exp(log(2) * group_idx); // derives bucket size using group idx
-    printf("size: %d\n", size);
+    int size = (int)(pow(2, group_idx) + 1e-9);
+    // int size = exp(log(2) * group_idx); // derives bucket size using group idx
+    // printf("size: %d\n", size);
     // printf("SIZE1: %d\n", prev->next->bucket_size);
     // printf("inserting bucket timstamp: %d, size: %d\n", ts, size);
     // The next bucket is valid
@@ -292,14 +290,14 @@ void merge(StateApx* self, int ts, int group_idx) {
         struct GroupNode *newNode = &(self->groups[(int) log2(size)]);
         
         // struct GroupNode *newNode = (GroupNode*) malloc(sizeof(GroupNode));
-        newNode->bucket_size = size;
+        // newNode->bucket_size = size;
         // printf("__________________________________________ %d\n", self->k+1);
         // int *A = (int*) malloc(sizeof(int) * (self->k + 1));
         // newNode->buckets = &A[0];
         // printf("***bucket idx: %d\n", (int) log2(newNode.bucket_size) * (self->k + 1));
-        newNode->buckets = &(self->buckets[(int) log2(newNode->bucket_size) * (self->k + 1)]); // use global idx (newNode->bucket_ize - 1) * k + 1
-        printf("newNode.buckets: %p\n", newNode->buckets);
-        printf("buckets start: %p\n", self->buckets);
+        newNode->buckets = &(self->buckets[(int) log2(size) * (self->k + 1)]); // use global idx (newNode->bucket_ize - 1) * k + 1
+        // printf("newNode.buckets: %p\n", newNode->buckets);
+        // printf("buckets start: %p\n", self->buckets);
         // self->cur_idx += self->k + 1; // increment global idx
         newNode->bucket_insert = 0;
         newNode->bucket_evict = 0;
@@ -314,9 +312,9 @@ void merge(StateApx* self, int ts, int group_idx) {
     // printf("5\n");
     // finally insert ts into group
     // printf("SIZE2: %d\n", prev->next->bucket_size);
-    printf("insert: %d\n", group->bucket_insert);
+    // printf("insert: %d\n", group->bucket_insert);
     // printf("group.buckets[group.bucket_insert]: %d\n", group.buckets[group.bucket_insert]);
-    printf("group.buckets: %p\n", group->buckets);
+    // printf("group.buckets: %p\n", group->buckets);
     group->buckets[group->bucket_insert] = ts;
     // printf("6\n");
     // *(prev->next->buckets + prev->next->bucket_insert) = ts;
